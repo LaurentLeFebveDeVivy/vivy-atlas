@@ -11,7 +11,7 @@
 
 # Context
 
-The component design docs ([connectors](../solution_design/components/connectors.md), [memory](../solution_design/components/memory.md), [databases](../solution_design/components/databases.md), [agents](../solution_design/components/agents.md)) pin down the contracts: `NormalizedDocument`, the sync lifecycle, the store interfaces, hybrid search. The remaining open items — exact schemas, chunking strategy — are best resolved by building against real data.
+The component design docs ([connectors](../solution_design/components/connectors/connectors.md), [memory](../solution_design/components/memory/memory.md), [databases](../solution_design/components/databases/databases.md), [agents](../solution_design/components/agents/agents.md)) pin down the contracts: `NormalizedDocument`, the sync lifecycle, the store interfaces, hybrid search. The remaining open items — exact schemas, chunking strategy — are best resolved by building against real data.
 
 **Explicitly deferred:** Go API server, all agents, user memory, knowledge graph, episodic memory, scheduling (syncs are manually triggered), archive-mode tombstones, PDF and git connectors.
 

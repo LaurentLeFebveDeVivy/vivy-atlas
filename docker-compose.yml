@@ -1,0 +1,21 @@
+services:
+  db:
+    image: docker.io/pgvector/pgvector:pg16 # extends the postgres16 image
+    environment:
+      POSTGRES_USER: vivy
+      POSTGRES_PASSWORD: vivy
+      POSTGRES_DB: vivyatlas
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumnes:
+      - pgdata:/var/lib/postgresql/data
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vivy -d vivyatlas"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
+
+volumnes:
+  pgdata:
