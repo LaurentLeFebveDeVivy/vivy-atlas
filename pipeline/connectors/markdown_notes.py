@@ -1,5 +1,5 @@
 from __future__ import annotations
-from base import Connector, SourceItem, RawContent, NormalizedDocument, SyncEstimate, Sensitivity
+from pipeline.connectors.base import Connector, SourceItem, RawContent, NormalizedDocument, SyncEstimate, Sensitivity
 from typing import List, Dict, Tuple, Set
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -22,7 +22,7 @@ class MarkdownNotesConfig:
     @classmethod
     def from_dict(cls, raw: dict) -> MarkdownNotesConfig:
         return cls(
-            root_paths = [Path(p).expanduser() for p in raw["root_paths"]],
+            root_paths = [Path(p).expanduser().resolve() for p in raw["root_paths"]],
             include_globs = list(raw.get("include_globs", ["**/*.md"])), # Recursively find markdowns if nothing else specified
             exclude_globs = list(raw.get("exclude_globs", [])), # Don't exclude anything by default
             default_sensitivity = Sensitivity(raw.get("default_sensitivity", "personal"))
@@ -140,7 +140,7 @@ class MarkdownNotesConnector(Connector):
         title = self._extract_title(frontmatter, body, Path(item.metadata["absolute_path"]))
         
         metadata = {**item.metadata, **raw.metadata, "frontmatter": frontmatter}
-        
+                
         return NormalizedDocument(
             doc_id="xxx", # TODO
             connector_instance_id="xxx", # TODO
@@ -152,6 +152,8 @@ class MarkdownNotesConnector(Connector):
             sensitivity=item.sensitivity,
             metadata=metadata,
             synced_at=ts,
+            created_at=ts,
+            modified_at=ts,
             content=body
         )
     
