@@ -12,6 +12,8 @@ from pipeline.connectors.registry import CONNECTOR_REGISTRY
 from pipeline.connectors.base import Connector, SourceItem
 from pipeline.etl.chunker import Chunker, Chunk
 from pipeline.etl.embedder import Embedder, Embedding
+from pipeline.config import load_config, Config
+from tokenizers import Tokenizer
 
 @dataclass(frozen=True)
 class SyncItemError:
@@ -34,8 +36,10 @@ def main() -> int:
     parser.add_argument("--select", action="store_true",
                         help="interactively pick which instances to sync (default: all)")
     args = parser.parse_args()
+    
+    cfg = load_config()
 
-    db = Database.connect()
+    db = Database.connect(url=cfg.database.url)
     instances: List[ConnectorInstance] = db.get_instances()
 
     if not instances:
@@ -50,13 +54,13 @@ def main() -> int:
 
     for instance in instances:
         started = time.monotonic()
-        report = run_sync(db, instance)
+        report = run_sync(db, instance, cfg)
         elapsed = time.monotonic() - started
         _print_report(instance, report, elapsed)
 
     return 0
 
-def run_sync(db: Database, instance: ConnectorInstance) -> SyncRunReport:
+def run_sync(db: Database, instance: ConnectorInstance, cfg: Config) -> SyncRunReport:
     
     with db.transaction():
        sync_run_id = db.insert_sync_run(instance.id)
@@ -70,9 +74,22 @@ def run_sync(db: Database, instance: ConnectorInstance) -> SyncRunReport:
     
     new_items, changed_items, del_items= _categorize_items(connector, instance.config, states, report)
     
-    _handle_new(connector, db, new_items, instance, report)
+    tokenizer = Tokenizer.from_file(cfg.embedding.tokenizer_path)
+    chunker = Chunker(
+        tokenizer=tokenizer,
+        max_tokens=cfg.chunking.max_tokens,
+        overlap=cfg.chunking.overlap
+    )
+    embedder = Embedder(
+        model=cfg.embedding.model, 
+        base_url=cfg.embedding.base_url, 
+        model_version=cfg.embedding.model,
+        document_prefix=cfg.embedding.document_prefix
+    ) 
+    
+    _handle_new(connector, db, new_items, instance, report, chunker, embedder)
     _handle_deleted(db, del_items, instance, report)
-    _handle_changed(connector, db, changed_items, instance, report)
+    _handle_changed(connector, db, changed_items, instance, report, chunker, embedder)
     
     with db.transaction():
         db.update_sync_run(sync_run_id, report)
@@ -116,7 +133,12 @@ def _print_report(instance: ConnectorInstance, report: SyncRunReport, elapsed: f
     for err in report.errors:
         print(f"  ! {err.source_id} [{err.stage}]: {err.error}")
 
-def _categorize_items(connector: Connector, config: Dict, states: List[SyncState], report: SyncRunReport) -> Tuple:
+def _categorize_items(
+    connector: Connector, 
+    config: Dict, 
+    states: List[SyncState], 
+    report: SyncRunReport
+) -> Tuple:
     old = {s.source_id:s for s in states}
 
     new_items: List[SourceItem] = []
@@ -135,7 +157,15 @@ def _categorize_items(connector: Connector, config: Dict, states: List[SyncState
     
     return new_items, changed_items, del_items
     
-def _handle_new(connector: Connector, db: Database, items: List[SourceItem], instance: ConnectorInstance, report: SyncRunReport) -> None:
+def _handle_new(
+    connector: Connector, 
+    db: Database, 
+    items: List[SourceItem], 
+    instance: ConnectorInstance, 
+    report: SyncRunReport, 
+    chunker: Chunker,
+    embedder: Embedder
+) -> None:
     """
     - Insert documents into DB
     - Create chunks via chunker
@@ -143,9 +173,6 @@ def _handle_new(connector: Connector, db: Database, items: List[SourceItem], ins
     - Embed chunks
     - Insert embedding into DB
     """
-    chunker = Chunker()
-    embedder = Embedder(model="TODO", base_url="TODO", model_version="TODO") # TODO
-
     for item in items:
         stage = "fetch"
         try:
@@ -159,11 +186,11 @@ def _handle_new(connector: Connector, db: Database, items: List[SourceItem], ins
             chunks: List[Chunk] = chunker.chunk(doc)
         
             stage = "embed"
-            embeddings: List[Embedding] = embedder.embed(chunks)
+            embeddings: List[Embedding] = embedder.embed([c.content for c in chunks])
 
             stage = "write"
             with db.transaction():
-                db.insert_document( doc, doc_id, instance.id)
+                db.insert_document(doc, doc_id, instance.id)
                 for chunk, embedding in zip(chunks, embeddings):
                     chunk_id = db.insert_chunk(doc_id, chunk, doc)
                     db.insert_embedding(embedding, chunk_id)
@@ -191,16 +218,21 @@ def _handle_deleted(db: Database, items: List[SyncState], instance: ConnectorIns
         except Exception as e:
             report.errors.append(SyncItemError(state.source_id, "delete", str(e)))
   
-def _handle_changed(connector: Connector, db: Database, items: List[SourceItem], instance: ConnectorInstance, report: SyncRunReport) -> None:
+def _handle_changed(
+    connector: Connector, 
+    db: Database, 
+    items: List[SourceItem], 
+    instance: ConnectorInstance, 
+    report: SyncRunReport,
+    chunker: Chunker,
+    embedder: Embedder
+) -> None:
     """
     - Non-matching ingerprints can be false alarms
     - Compute the actual content hash and compare it to what was recorded
         - Match: No-op, update fingerprint
         - No match: Re-compute chunks and embeddings, and update atomically
     """
-    chunker = Chunker()
-    embedder = Embedder(model="TODO", base_url="TODO", model_version="TODO")
-    
     for item in items:
         stage = "get_document"
         try: 
@@ -222,7 +254,7 @@ def _handle_changed(connector: Connector, db: Database, items: List[SourceItem],
                 chunks: List[Chunk] = chunker.chunk(new_doc)
                 
                 stage = "embed"
-                embeddings: List[Embedding] = embedder.embed(chunks)
+                embeddings: List[Embedding] = embedder.embed([c.content for c in chunks])
                 
                 stage = "write"
                 with db.transaction():

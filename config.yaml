@@ -1,0 +1,15 @@
+database:
+  url: postgres://vivy:vivy@127.0.0.1:5433/vivyatlas?sslmode=disable
+
+embedding:
+  base_url: http://localhost:11434
+  model: nomic-embed-text
+  model_version: v1.5
+  document_prefix: "search_document: "
+  query_prefix: "search_query: "
+  tokenizer_path: pipeline/etl/tokenizer.json
+  dimension: 768
+
+chunking:
+  max_tokens: 512
+  overlap: 50

@@ -57,8 +57,9 @@ class Database:
         self.conn = conn
     
     @classmethod
-    def connect(cls) -> "Database":
-        return cls(psycopg.connect(DB_URL, autocommit=True))
+    def connect(cls, url: str | None = None) -> "Database":
+        url = url or DB_URL
+        return cls(psycopg.connect(url, autocommit=True))
 
     def transaction(self):
         return self.conn.transaction()
