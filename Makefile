@@ -4,8 +4,11 @@ PORT ?= 5433
 DB_USER ?= vivy
 DB_NAME ?= vivyatlas
 DB_URL ?= postgres://vivy:vivy@127.0.0.1:5433/vivyatlas?sslmode=disable
+CONFIG_DIR := $(HOME)/.config/vivyatlas
+BINDIR ?= /usr/local/bin
 
-.PHONY: help up down inspect-pg migrate register sync sync-select
+
+.PHONY: help up down inspect-pg migrate register sync sync-select install
 
 .DEFAULT_GOAL := help
 
@@ -38,3 +41,9 @@ ifndef cp
 	$(error usage: make register type=<connector_type> cp=<config_path>)
 endif
 	uv run python -m pipeline.register $(type) $(cp)
+
+install: ## Install the vivy CLI and symlink config into ~/.config
+	cd server && go build -o /tmp/vivy ./cmd/vivy
+	sudo install -m 0755 /tmp/vivy $(BINDIR)/vivy
+	mkdir -p $(CONFIG_DIR)
+	ln -sfn $(CURDIR)/config.yaml $(CONFIG_DIR)/config.yaml

@@ -83,7 +83,7 @@ def run_sync(db: Database, instance: ConnectorInstance, cfg: Config) -> SyncRunR
     embedder = Embedder(
         model=cfg.embedding.model, 
         base_url=cfg.embedding.base_url, 
-        model_version=cfg.embedding.model,
+        model_version=cfg.embedding.model_version,
         document_prefix=cfg.embedding.document_prefix
     ) 
     

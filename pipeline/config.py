@@ -1,9 +1,8 @@
 import yaml
 from pathlib import Path
-import os
 from dataclasses import dataclass
 
-_DEFAULT_PATH = Path(__file__).resolve().parents[1] / "config.yaml"
+_DEFAULT_PATH = Path.home() / ".config" / "vivyatlas" / "config.yaml"
 
 @dataclass(frozen=True)
 class DatabaseConfig:
@@ -33,9 +32,14 @@ class Config:
 
 def load_config(path: Path | None = None) -> Config:
     
-    path = path or Path(os.environ.get("VIVYATLAS_CONFIG", _DEFAULT_PATH))
+    path = path or _DEFAULT_PATH
     with open(path) as f:
         raw = yaml.safe_load(f)
+        
+    tok = Path(raw["embedding"]["tokenizer_path"])
+    if not tok.is_absolute():
+        cfg_dir = path.resolve().parent
+        raw["embedding"]["tokenizer_path"] = str(cfg_dir / tok)
         
     return Config(
         database=DatabaseConfig(**raw["database"]),

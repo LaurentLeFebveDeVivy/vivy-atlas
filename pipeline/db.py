@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Any, List, TYPE_CHECKING
 
-import os
 import psycopg
 from psycopg.types.json import Jsonb
 from dataclasses import dataclass, asdict
@@ -10,6 +9,7 @@ from datetime import datetime, timezone
 from pipeline.connectors.base import NormalizedDocument
 from pipeline.etl.embedder import Embedding
 from pipeline.etl.chunker import Chunk
+from pipeline.config import load_config
 
 if TYPE_CHECKING:
     from pipeline.sync import SyncRunReport
@@ -47,18 +47,13 @@ class PGDocument:
     status:                  str              
 
 
-DB_URL = os.environ.get("VIVY_DB_URL", "postgresql://vivy:vivy@127.0.0.1:5433/vivyatlas")
-
-def connect() -> psycopg.Connection:
-    return psycopg.connect(DB_URL, autocommit=True)
-
 class Database:
     def __init__(self, conn: psycopg.Connection) -> None:
         self.conn = conn
     
     @classmethod
     def connect(cls, url: str | None = None) -> "Database":
-        url = url or DB_URL
+        url = url or load_config().database.url
         return cls(psycopg.connect(url, autocommit=True))
 
     def transaction(self):
