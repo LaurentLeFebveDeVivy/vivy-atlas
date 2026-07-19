@@ -22,7 +22,7 @@ class Chunker:
         
         self.tokenizer = tokenizer
         self.max_tokens = max_tokens
-        self.overlap = 50
+        self.overlap = overlap
     
     def chunk(self, doc: NormalizedDocument) -> List[Chunk]:
         

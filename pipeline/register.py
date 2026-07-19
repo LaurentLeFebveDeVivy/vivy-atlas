@@ -4,7 +4,7 @@ import sys
 import yaml
 from psycopg.types.json import Jsonb
 
-from pipeline import db
+from pipeline.db import Database
 from pipeline.connectors.registry import CONNECTOR_REGISTRY
 
 def main() -> int:
@@ -39,7 +39,8 @@ def main() -> int:
     for w in est.warnings:
         print(f"  warning: {w}")
     
-    with db.connect() as conn:
+    database = Database.connect()
+    with database.conn as conn:
         existing = conn.execute(
             """
             SELECT id FROM connector_instances
